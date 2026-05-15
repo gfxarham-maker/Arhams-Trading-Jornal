@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arham's Trading Journal | Gold Terminal</title>
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style type="text/css">
+        :root {
+            --font-sans: 'Inter', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+        body {
+            font-family: var(--font-sans);
+            background-color: #020617; /* Slate-950 */
+            color: #f1f5f9; /* Slate-100 */
+        }
+        .font-mono { font-family: var(--font-mono); }
+        .win-gradient { background: linear-gradient(135deg, #064e3b 0%, #065f46 100%); }
+        .loss-gradient { background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%); }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        input, select, textarea {
+            background-color: #0f172a !important;
+            border: 1px solid #1e293b !important;
+            color: #f1f5f9 !important;
+        }
+        input:focus, select:focus, textarea:focus {
+            border-color: #10b981 !important;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="bg-emerald-500 p-2 rounded-lg">
+                    <i data-lucide="trending-up" class="text-slate-950 w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg tracking-tight">Arham's<span class="text-emerald-400">Journal</span></h1>
+                    <p class="text-[10px] text-slate-500 font-mono uppercase tracking-widest">Gold Trading Terminal v1.1.0</p>
+                </div>
+            </div>
+            <nav class="flex gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                <button onclick="switchTab('dashboard')" id="btn-dashboard" class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all bg-emerald-500/10 text-emerald-400">Dashboard</button>
+                <button onclick="switchTab('analytics')" id="btn-analytics" class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all text-slate-400 hover:text-slate-200">Analytics</button>
+                <button onclick="switchTab('ledger')" id="btn-ledger" class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all text-slate-400 hover:text-slate-200">Ledger</button>
+                <button onclick="switchTab('notebook')" id="btn-notebook" class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all text-slate-400 hover:text-slate-200">Notebook</button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl mx-auto w-full p-4 md:p-6 space-y-6">
+        <!-- Dashboard Section -->
+        <section id="tab-dashboard" class="space-y-6">
+            <!-- KPI Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Win Rate -->
+                <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
+                    <div>
+                        <p class="text-slate-500 text-xs font-medium uppercase tracking-wider mb-1">Win Rate</p>
+                        <h3 id="stat-winrate" class="text-3xl font-bold font-mono">0%</h3>
+                    </div>
+                    <div class="relative w-14 h-14">
+                        <svg class="w-full h-full transform -rotate-90">
+                            <circle cx="28" cy="28" r="24" stroke="currentColor" stroke-width="4" fill="transparent" class="text-slate-800" />
+                            <circle id="winrate-ring" cx="28" cy="28" r="24" stroke="currentColor" stroke-width="4" fill="transparent" stroke-dasharray="150.79" stroke-dashoffset="150.79" class="text-emerald-500 transition-all duration-1000" />
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Net PnL -->
+                <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
+                    <p class="text-slate-500 text-xs font-medium uppercase tracking-wider mb-1">Net PnL</p>
+                    <h3 id="stat-pnl" class="text-3xl font-bold font-mono">$0.00</h3>
+                    <p id="stat-pnl-label" class="text-[10px] mt-1 text-slate-600 font-mono">Total Cumulative Gains</p>
+                </div>
+
+                <!-- Profit Factor -->
+                <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
+                    <p class="text-slate-500 text-xs font-medium uppercase tracking-wider mb-1">Profit Factor</p>
+                    <h3 id="stat-factor" class="text-3xl font-bold font-mono">N/A</h3>
+                    <p class="text-[10px] mt-1 text-slate-600 font-mono">Gross Profits / Losses</p>
+                </div>
+
+                <!-- Total Volume -->
+                <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
+                    <p class="text-slate-500 text-xs font-medium uppercase tracking-wider mb-1">Total Trades</p>
+                    <h3 id="stat-volume" class="text-3xl font-bold font-mono">0</h3>
+                    <p class="text-[10px] mt-1 text-slate-600 font-mono">Sample Population</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Trade Logger Form -->
+                <div class="lg:col-span-1 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+                    <div class="p-4 border-b border-slate-800 bg-slate-800/20 flex items-center gap-2">
+                        <i data-lucide="plus-circle" class="w-4 h-4 text-emerald-400"></i>
+                        <h2 class="font-bold text-sm uppercase tracking-wider">Log New Execution</h2>
+                    </div>
+                    <form id="trade-form" class="p-6 space-y-4">
+                        <div class="space-y-1.5">
+                            <label class="text-xs text-slate-400 font-medium ml-1">Direction</label>
+                            <div class="flex gap-2 p-1 bg-slate-950 rounded-lg border border-slate-800">
+                                <button type="button" onclick="setDirection('LONG')" id="dir-long" class="flex-1 py-1.5 rounded-md text-xs font-bold transition-all bg-emerald-500 text-slate-950">LONG</button>
+                                <button type="button" onclick="setDirection('SHORT')" id="dir-short" class="flex-1 py-1.5 rounded-md text-xs font-bold transition-all text-slate-500 hover:text-white">SHORT</button>
+                            </div>
+                            <input type="hidden" id="direction" value="LONG">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-1.5">
+                                <label class="text-xs text-slate-400 font-medium ml-1">Entry Price (Gold)</label>
+                                <input type="number" id="entry" step="any" placeholder="0.00" required class="w-full px-3 py-2 rounded-lg text-sm font-mono">
+                            </div>
+                            <div class="space-y-1.5">
+                                <label class="text-xs text-slate-400 font-medium ml-1">Exit Price (Gold)</label>
+                                <input type="number" id="exit" step="any" placeholder="0.00" required class="w-full px-3 py-2 rounded-lg text-sm font-mono">
+                            </div>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label class="text-xs text-slate-400 font-medium ml-1">Lot Size / Quantity</label>
+                            <input type="number" id="qty" step="any" placeholder="0" required class="w-full px-3 py-2 rounded-lg text-sm font-mono">
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label class="text-xs text-slate-400 font-medium ml-1">Mood</label>
+                            <select id="mood" class="w-full px-3 py-2 rounded-lg text-sm cursor-pointer">
+                                <option value="Patient">😌 Patient</option>
+                                <option value="Disciplined">🛡️ Disciplined</option>
+                                <option value="Confident">💎 Confident</option>
+                                <option value="FOMO">😱 FOMO</option>
+                                <option value="Anxious">😰 Anxious</option>
+                                <option value="Revenge">🔥 Revenge</option>
+                            </select>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label class="text-xs text-slate-400 font-medium ml-1">Trade Notes</label>
+                            <textarea id="notes" rows="2" placeholder="Market context, reasoning..." class="w-full px-3 py-2 rounded-lg text-sm resize-none"></textarea>
+                        </div>
+
+                        <button type="submit" class="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2">
+                            <span>LOG GOLD TRADE</span>
+                            <i data-lucide="zap" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Mini Ledger Preview -->
+                <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col overflow-hidden">
+                    <div class="p-4 border-b border-slate-800 bg-slate-800/20 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="history" class="w-4 h-4 text-emerald-400"></i>
+                            <h2 class="font-bold text-sm uppercase tracking-wider">Recent Activity</h2>
+                        </div>
+                        <button onclick="switchTab('ledger')" class="text-xs text-emerald-400 hover:underline">View All Records</button>
+                    </div>
+                    <div class="flex-1 overflow-auto p-4">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="sticky top-0 bg-slate-900 border-b border-slate-800">
+                                <tr>
+                                    <th class="py-3 px-3 text-[10px] font-bold text-slate-500 uppercase text-center">Dir.</th>
+                                    <th class="py-3 px-3 text-[10px] font-bold text-slate-500 uppercase">Details</th>
+                                    <th class="py-3 px-3 text-[10px] font-bold text-slate-500 uppercase text-right">PnL ($)</th>
+                                    <th class="py-3 px-3 text-[10px] font-bold text-slate-500 uppercase text-right">Return %</th>
+                                    <th class="py-3 px-3 text-[10px] font-bold text-slate-500 uppercase text-right">Result</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recent-trades-body" class="divide-y divide-slate-800/50">
+                                <!-- JS Injected -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Analytics Section -->
+        <section id="tab-analytics" class="hidden space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Equity Curve -->
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl md:col-span-2">
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h2 class="text-lg font-bold text-slate-200">Equity Curve</h2>
+                            <p class="text-xs text-slate-500">Cumulative Net PnL over time</p>
+                        </div>
+                        <div class="flex gap-2">
+                        </div>
+                    </div>
+                    <div class="h-64">
+                        <canvas id="equityChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Win/Loss Ratio -->
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl md:col-span-1">
+                    <h2 class="text-lg font-bold text-slate-200 mb-4">Win/Loss Distribution</h2>
+                    <div class="h-64 flex items-center justify-center">
+                        <canvas id="winLossChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Ledger Section -->
+        <section id="tab-ledger" class="hidden space-y-4">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/50 p-4 border border-slate-800 rounded-2xl">
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="toggleSort('date')" class="px-3 py-1.5 rounded-lg text-xs bg-slate-800 hover:bg-slate-700 font-medium flex items-center gap-1.5">
+                        <span>Sort: Date</span>
+                        <i data-lucide="arrow-down-up" class="w-3 h-3"></i>
+                    </button>
+                    <button onclick="toggleSort('pnl')" class="px-3 py-1.5 rounded-lg text-xs bg-slate-800 hover:bg-slate-700 font-medium flex items-center gap-1.5">
+                        <span>Sort: PnL</span>
+                        <i data-lucide="arrow-down-up" class="w-3 h-3"></i>
+                    </button>
+                </div>
+                <div class="text-[10px] font-mono text-slate-500 uppercase">
+                    Total Gold Trades: <span id="ledger-count" class="text-slate-300">0</span>
+                </div>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden overflow-x-auto shadow-2xl">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-slate-800/30 border-b border-slate-800">
+                        <tr>
+                            <th class="py-4 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Date</th>
+                            <th class="py-4 px-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-center">Dir.</th>
+                            <th class="py-4 px-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">Entry (XAUUSD)</th>
+                            <th class="py-4 px-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">Exit (XAUUSD)</th>
+                            <th class="py-4 px-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">Lots</th>
+                            <th class="py-4 px-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">PnL ($)</th>
+                            <th class="py-4 px-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">Return %</th>
+                            <th class="py-4 px-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-center">Mood</th>
+                            <th class="py-4 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="full-ledger-body" class="divide-y divide-slate-800/50">
+                        <!-- JS Injected -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Notebook Section -->
+        <section id="tab-notebook" class="hidden grid grid-cols-1 md:grid-cols-12 gap-6 h-[calc(100vh-12rem)] md:h-[600px]">
+            <!-- Notes List -->
+            <div class="md:col-span-4 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col overflow-hidden shadow-xl">
+                <div class="p-4 border-b border-slate-800 bg-slate-800/20 flex items-center justify-between">
+                    <h2 class="font-bold text-sm uppercase tracking-wider">Archives</h2>
+                    <button onclick="createNewNote()" class="p-1.5 rounded-lg bg-emerald-500 text-slate-950 hover:bg-emerald-400">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <div id="notes-list" class="flex-1 overflow-auto p-2 space-y-1">
+                    <!-- JS Injected -->
+                </div>
+            </div>
+
+            <!-- Note Editor -->
+            <div class="md:col-span-8 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col overflow-hidden shadow-xl">
+                <div class="p-4 border-b border-slate-800 bg-slate-800/20 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <i data-lucide="edit-3" class="w-4 h-4 text-emerald-400"></i>
+                        <input type="text" id="note-title" placeholder="Note Title..." class="bg-transparent border-none focus:ring-0 p-0 text-sm font-bold w-64 placeholder:text-slate-600">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <select id="note-category" class="px-2 py-1 text-[10px] rounded border-slate-800 uppercase font-mono h-auto">
+                            <option value="Daily Review">Daily Review</option>
+                            <option value="Analysis">Market Analysis</option>
+                            <option value="Psychology">Psychology</option>
+                        </select>
+                        <button onclick="saveNote()" id="save-note-btn" class="px-3 py-1.5 rounded-lg bg-slate-800 text-xs font-bold hover:bg-slate-700 transition-colors">
+                            Save Changes
+                        </button>
+                    </div>
+                </div>
+                <textarea id="note-content" class="flex-1 p-6 text-sm font-mono resize-none leading-relaxed placeholder:text-slate-700" placeholder="Start typing your market observation..."></textarea>
+                <div class="p-3 border-t border-slate-800 text-[10px] font-mono text-slate-500 flex justify-between">
+                    <span id="note-status">READY</span>
+                    <span id="note-date">--</span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="p-4 text-center border-t border-slate-900 bg-slate-950 flex items-center justify-center gap-6">
+        <p class="text-[10px] text-slate-600 font-mono tracking-widest uppercase">Encryption Standard Applied • Local Storage Active</p>
+        <button onclick="systemReset()" class="text-[10px] text-rose-500/50 hover:text-rose-500 uppercase font-mono tracking-widest transition-colors">Emergency Clear Data</button>
+    </footer>
+
+    <script>
+        // Init State
+        let trades = [];
+        let notes = [];
+        let activeNoteId = null;
+        let pnlSortDir = -1;
+        let dateSortDir = -1;
+        
+        let charts = {
+            equity: null,
+            winLoss: null
+        };
+
+        // Preloaded Gold Historical Data
+        const defaultTrades = [
+            { id: 't1', date: '2026-05-12', asset: 'XAUUSD', direction: 'LONG', entry: 2320.50, exit: 2345.20, qty: 1.0, fees: 0, strategy: 'Gold Standard', mood: 'Patient', notes: 'Bullish momentum on the 4H.' },
+            { id: 't2', date: '2026-05-13', asset: 'XAUUSD', direction: 'LONG', entry: 2355.00, exit: 2348.50, qty: 0.5, fees: 0, strategy: 'Gold Standard', mood: 'FOMO', notes: 'Caught the top on a greedy entry.' },
+            { id: 't3', date: '2026-05-14', asset: 'XAUUSD', direction: 'SHORT', entry: 2350.10, exit: 2335.80, qty: 2.0, fees: 0, strategy: 'Gold Standard', mood: 'Disciplined', notes: 'Clean technical rejection from resistance.' }
+        ];
+
+        const defaultNotes = [
+            { id: 'n1', title: 'Weekend Market Preparation', content: 'Focusing on high-volume pivots. Watch BTC dominance levels.', category: 'Analysis', date: '2026-05-14T10:00:00Z' }
+        ];
+
+        // Core Functions
+        function init() {
+            const savedTrades = localStorage.getItem('protrade_trades');
+            const savedNotes = localStorage.getItem('protrade_notes');
+
+            trades = savedTrades ? JSON.parse(savedTrades) : defaultTrades;
+            notes = savedNotes ? JSON.parse(savedNotes) : defaultNotes;
+
+            if (!savedTrades) localStorage.setItem('protrade_trades', JSON.stringify(trades));
+            if (!savedNotes) localStorage.setItem('protrade_notes', JSON.stringify(notes));
+
+            renderAll();
+            lucide.createIcons();
+            
+            // Auto-save on input
+            document.getElementById('note-content').addEventListener('input', () => {
+                document.getElementById('note-status').textContent = 'UNSAVED';
+                document.getElementById('note-status').className = 'text-amber-500';
+            });
+        }
+
+        function renderAll() {
+            calculateKPIs();
+            renderRecentTrades();
+            renderFullLedger();
+            renderNotesList();
+            refreshCharts();
+        }
+
+        // --- NEW: Charting Implementation ---
+        function refreshCharts() {
+            const filteredTrades = [...trades].reverse();
+            
+            renderEquityChart(filteredTrades);
+            renderWinLossChart(filteredTrades);
+        }
+
+        function renderEquityChart(data) {
+            const ctx = document.getElementById('equityChart');
+            if (!ctx) return;
+            if (charts.equity) charts.equity.destroy();
+
+            let cumulative = 0;
+            const points = data.map(t => {
+                const { pnl } = calculateTradeMetrics(t);
+                cumulative += pnl;
+                return { x: t.date, y: cumulative };
+            });
+
+            charts.equity = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: 'Total PnL ($)',
+                        data: points,
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.2,
+                        fill: true,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#10b981'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: { backgroundColor: '#0f172a', titleColor: '#94a3b8', bodyColor: '#f1f5f9' }
+                    },
+                    scales: {
+                        x: { grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 10 } } },
+                        y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 10 } } }
+                    }
+                }
+            });
+        }
+
+        function renderWinLossChart(data) {
+            const ctx = document.getElementById('winLossChart');
+            if (!ctx) return;
+            if (charts.winLoss) charts.winLoss.destroy();
+
+            let wins = 0;
+            let losses = 0;
+            data.forEach(t => {
+                const { pnl } = calculateTradeMetrics(t);
+                if (pnl > 0) wins++; else losses++;
+            });
+
+            charts.winLoss = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Win', 'Loss'],
+                    datasets: [{
+                        data: [wins, losses],
+                        backgroundColor: ['#10b981', '#f43f5e'],
+                        borderWidth: 0,
+                        hoverOffset: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 12 }, usePointStyle: true, padding: 20 } }
+                    },
+                    cutout: '75%'
+                }
+            });
+        }
+        // --- END: Charting ---
+        // --- END: Charting ---
+
+        function calculateKPIs() {
+            const total = trades.length;
+            if (total === 0) {
+                updateStat('winrate', '0%');
+                updateStat('pnl', '$0.00');
+                updateStat('factor', 'N/A');
+                updateStat('volume', '0');
+                return;
+            }
+
+            let wins = 0;
+            let netPnl = 0;
+            let grossProfit = 0;
+            let grossLoss = 0;
+
+            trades.forEach(t => {
+                const { pnl } = calculateTradeMetrics(t);
+                netPnl += pnl;
+                if (pnl > 0) {
+                    wins++;
+                    grossProfit += pnl;
+                } else {
+                    grossLoss += Math.abs(pnl);
+                }
+            });
+
+            const winRate = Math.round((wins / total) * 100);
+            const profitFactor = grossLoss === 0 ? 'N/A' : (grossProfit / grossLoss).toFixed(2);
+
+            updateStat('winrate', winRate + '%');
+            updateStat('pnl', (netPnl >= 0 ? '$' : '-$') + Math.abs(netPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+            updateStat('factor', profitFactor);
+            updateStat('volume', total);
+
+            // UI Decoration
+            const pnlColor = netPnl >= 0 ? 'text-emerald-400' : 'text-rose-400';
+            document.getElementById('stat-pnl').className = `text-3xl font-bold font-mono ${pnlColor}`;
+            
+            const ring = document.getElementById('winrate-ring');
+            const circumference = 150.79;
+            const offset = circumference - (winRate / 100) * circumference;
+            ring.style.strokeDashoffset = offset;
+        }
+
+        function updateStat(id, val) {
+            document.getElementById('stat-' + id).textContent = val;
+        }
+
+        // Trade Handlers
+        function setDirection(dir) {
+            document.getElementById('direction').value = dir;
+            const longBtn = document.getElementById('dir-long');
+            const shortBtn = document.getElementById('dir-short');
+            
+            if (dir === 'LONG') {
+                longBtn.className = "flex-1 py-1.5 rounded-md text-xs font-bold transition-all bg-emerald-500 text-slate-950";
+                shortBtn.className = "flex-1 py-1.5 rounded-md text-xs font-bold transition-all text-slate-500 hover:text-white";
+            } else {
+                shortBtn.className = "flex-1 py-1.5 rounded-md text-xs font-bold transition-all bg-rose-500 text-white";
+                longBtn.className = "flex-1 py-1.5 rounded-md text-xs font-bold transition-all text-slate-500 hover:text-white";
+            }
+        }
+
+        document.getElementById('trade-form').onsubmit = (e) => {
+            e.preventDefault();
+            const newTrade = {
+                id: 't' + Date.now(),
+                date: new Date().toISOString().split('T')[0],
+                asset: 'XAUUSD',
+                direction: document.getElementById('direction').value,
+                entry: parseFloat(document.getElementById('entry').value),
+                exit: parseFloat(document.getElementById('exit').value),
+                qty: parseFloat(document.getElementById('qty').value),
+                fees: 0,
+                strategy: 'Gold Standard',
+                mood: document.getElementById('mood').value,
+                notes: document.getElementById('notes').value
+            };
+
+            trades.unshift(newTrade);
+            localStorage.setItem('protrade_trades', JSON.stringify(trades));
+            renderAll();
+            e.target.reset();
+            setDirection('LONG');
+        };
+
+        function deleteTrade(id) {
+            trades = trades.filter(t => t.id !== id);
+            localStorage.setItem('protrade_trades', JSON.stringify(trades));
+            renderAll();
+        }
+
+        // Ledger Rendering
+        function calculateTradeMetrics(t) {
+            // Gold contract is typically 100oz, but we'll use price diff * qty for simplicity unless specified.
+            // Often in FX, Gold pip calculation is (Exit - Entry) * Qty * 10 or 100.
+            // We'll stick to direct price difference * quantity as requested.
+            const raw = t.direction === 'LONG' ? (t.exit - t.entry) : (t.entry - t.exit);
+            const pnl = (raw * t.qty); 
+            const returnPct = ((pnl / (t.entry * t.qty)) * 100);
+            return { pnl, returnPct };
+        }
+
+        function renderRecentTrades() {
+            const body = document.getElementById('recent-trades-body');
+            body.innerHTML = trades.slice(0, 5).map(t => {
+                const { pnl, returnPct } = calculateTradeMetrics(t);
+                const isWin = pnl > 0;
+                return `
+                    <tr class="hover:bg-slate-800/30 transition-colors">
+                        <td class="py-4 px-3 text-center">
+                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${t.direction === 'LONG' ? 'text-emerald-400 bg-emerald-400/5' : 'text-rose-400 bg-rose-400/5'}">
+                                ${t.direction}
+                            </span>
+                        </td>
+                        <td class="py-4 px-3">
+                            <div class="font-bold text-sm text-slate-200">Gold (XAUUSD)</div>
+                            <div class="text-[10px] text-slate-500 uppercase font-mono">${t.date}</div>
+                        </td>
+                        <td class="py-4 px-3 text-right font-mono text-sm ${isWin ? 'text-emerald-400' : 'text-rose-400'}">
+                            ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
+                        </td>
+                        <td class="py-4 px-3 text-right font-mono text-[10px] text-slate-500">
+                            ${returnPct.toFixed(2)}%
+                        </td>
+                        <td class="py-4 px-3 text-right">
+                            <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase ${isWin ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'}">
+                                ${isWin ? 'WIN' : 'LOSS'}
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderFullLedger() {
+            const body = document.getElementById('full-ledger-body');
+            let filtered = [...trades];
+
+            document.getElementById('ledger-count').textContent = filtered.length;
+
+            body.innerHTML = filtered.map(t => {
+                const { pnl, returnPct } = calculateTradeMetrics(t);
+                const isWin = pnl > 0;
+                return `
+                    <tr class="hover:bg-slate-800/20 transition-colors group">
+                        <td class="py-4 px-4">
+                            <div class="font-bold text-slate-200 font-mono">${t.date}</div>
+                        </td>
+                        <td class="py-4 px-2 text-center">
+                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${t.direction === 'LONG' ? 'text-emerald-400 bg-emerald-400/5' : 'text-rose-400 bg-rose-400/5'}">
+                                ${t.direction}
+                            </span>
+                        </td>
+                        <td class="py-4 px-2 text-right font-mono text-xs text-slate-400">${t.entry.toLocaleString()}</td>
+                        <td class="py-4 px-2 text-right font-mono text-xs text-slate-400">${t.exit.toLocaleString()}</td>
+                        <td class="py-4 px-2 text-right font-mono text-xs text-slate-400">${t.qty.toLocaleString()}</td>
+                        <td class="py-4 px-2 text-right font-mono font-bold ${isWin ? 'text-emerald-400' : 'text-rose-400'}">
+                            ${pnl >= 0 ? '+' : ''}${pnl.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td class="py-4 px-2 text-right font-mono text-xs ${isWin ? 'text-emerald-500/60' : 'text-rose-500/60'}">
+                            ${returnPct.toFixed(2)}%
+                        </td>
+                        <td class="py-4 px-2 text-center text-lg">${t.mood.split(' ')[0]}</td>
+                        <td class="py-4 px-4 text-right">
+                            <button onclick="deleteTrade('${t.id}')" class="p-1.5 rounded-lg text-slate-600 hover:text-rose-400 hover:bg-rose-400/10 transition-all">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        // Filters & Sorting
+        function updateFilters() {
+            renderFullLedger();
+        }
+
+        function toggleSort(type) {
+            if (type === 'pnl') {
+                trades.sort((a, b) => {
+                    const metricsA = calculateTradeMetrics(a);
+                    const metricsB = calculateTradeMetrics(b);
+                    return (metricsA.pnl - metricsB.pnl) * pnlSortDir;
+                });
+                pnlSortDir *= -1;
+            } else if (type === 'date') {
+                trades.sort((a, b) => (new Date(a.date) - new Date(b.date)) * dateSortDir);
+                dateSortDir *= -1;
+            }
+            renderFullLedger();
+        }
+
+        // Notebook Handlers
+        function createNewNote() {
+            const newNote = {
+                id: 'n' + Date.now(),
+                title: 'New Observation',
+                content: '',
+                category: 'Daily Review',
+                date: new Date().toISOString()
+            };
+            notes.unshift(newNote);
+            localStorage.setItem('protrade_notes', JSON.stringify(notes));
+            renderNotesList();
+            loadNote(newNote.id);
+        }
+
+        function renderNotesList() {
+            const container = document.getElementById('notes-list');
+            container.innerHTML = notes.map(n => `
+                <div class="group relative">
+                    <button onclick="loadNote('${n.id}')" class="w-full text-left p-3 rounded-xl transition-all ${activeNoteId === n.id ? 'bg-emerald-500/10 border border-emerald-500/20' : 'hover:bg-slate-800 border border-transparent'}">
+                        <div class="font-bold text-sm truncate pr-6 ${activeNoteId === n.id ? 'text-emerald-400' : 'text-slate-200'}">${n.title || 'Untitled'}</div>
+                        <div class="flex items-center justify-between mt-1">
+                            <span class="text-[9px] text-slate-500 font-mono uppercase">${n.category}</span>
+                            <span class="text-[9px] text-slate-600 font-mono">${new Date(n.date).toLocaleDateString()}</span>
+                        </div>
+                    </button>
+                    <button onclick="deleteNote('${n.id}')" class="absolute top-3 right-3 p-1 rounded hover:bg-rose-500/10 text-slate-700 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-all">
+                        <i data-lucide="trash-2" class="w-3 h-3"></i>
+                    </button>
+                </div>
+            `).join('');
+            
+            if (activeNoteId === null && notes.length > 0) {
+                loadNote(notes[0].id);
+            }
+            lucide.createIcons();
+        }
+
+        function deleteNote(id) {
+            if (!confirm('Permanently delete this note?')) return;
+            notes = notes.filter(n => n.id !== id);
+            localStorage.setItem('protrade_notes', JSON.stringify(notes));
+            if (activeNoteId === id) {
+                activeNoteId = null;
+                document.getElementById('note-title').value = '';
+                document.getElementById('note-content').value = '';
+            }
+            renderNotesList();
+        }
+
+        function loadNote(id) {
+            activeNoteId = id;
+            const note = notes.find(n => n.id === id);
+            if (!note) return;
+
+            document.getElementById('note-title').value = note.title;
+            document.getElementById('note-content').value = note.content;
+            document.getElementById('note-category').value = note.category;
+            document.getElementById('note-date').textContent = new Date(note.date).toLocaleString();
+            document.getElementById('note-status').textContent = 'SYNCED';
+            document.getElementById('note-status').className = 'text-slate-500';
+
+            renderNotesList(); // update highlighting
+        }
+
+        function saveNote() {
+            if (!activeNoteId) return;
+            const index = notes.findIndex(n => n.id === activeNoteId);
+            if (index === -1) return;
+
+            notes[index] = {
+                ...notes[index],
+                title: document.getElementById('note-title').value,
+                content: document.getElementById('note-content').value,
+                category: document.getElementById('note-category').value,
+                date: new Date().toISOString()
+            };
+
+            localStorage.setItem('protrade_notes', JSON.stringify(notes));
+            
+            document.getElementById('note-status').textContent = 'CHANGES SAVED';
+            document.getElementById('note-status').className = 'text-emerald-500';
+            setTimeout(() => {
+                document.getElementById('note-status').textContent = 'SYNCED';
+                document.getElementById('note-status').className = 'text-slate-500';
+            }, 2000);
+
+            renderNotesList();
+        }
+
+        // Tab System
+        function switchTab(tab) {
+            ['dashboard', 'ledger', 'notebook', 'analytics'].forEach(t => {
+                const view = document.getElementById('tab-' + t);
+                const btn = document.getElementById('btn-' + t);
+                if (view) view.classList.add('hidden');
+                if (btn) btn.className = "px-4 py-1.5 rounded-lg text-sm font-medium transition-all text-slate-400 hover:text-slate-200";
+            });
+            const activeView = document.getElementById('tab-' + tab);
+            const activeBtn = document.getElementById('btn-' + tab);
+            if (activeView) activeView.classList.remove('hidden');
+            if (activeBtn) activeBtn.className = "px-4 py-1.5 rounded-lg text-sm font-medium transition-all bg-emerald-500/10 text-emerald-400";
+            
+            lucide.createIcons();
+            if (tab === 'ledger') renderFullLedger();
+            if (tab === 'dashboard') calculateKPIs();
+            if (tab === 'analytics') refreshCharts();
+        }
+
+        function systemReset() {
+            if (!confirm('WARNING: This will erase all trades and notes. Continue?')) return;
+            localStorage.clear();
+            location.reload();
+        }
+
+        // Initialize
+        window.onload = init;
+    </script>
+</body>
+</html>
+
