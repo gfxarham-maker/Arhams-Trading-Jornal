@@ -417,29 +417,59 @@
                 }
             });
 
-            document.getElementById('auth-signin').onclick = () => signInWithPopup(auth, provider);
-            document.getElementById('auth-signout').onclick = () => signOut(auth);
+            document.getElementById('auth-signin').onclick = async () => {
+                try {
+                    await signInWithPopup(auth, provider);
+                } catch (error) {
+                    console.error("Auth Error:", error);
+                    if (error.code === 'auth/popup-blocked') {
+                        alert("Sign-in popup was blocked. Please allow popups for this site.");
+                    } else if (error.code === 'auth/unauthorized-domain') {
+                        alert("Domain Error: This domain is not authorized in Firebase. \n\nIf you just launched on GitHub, you must add your GitHub Pages URL to the 'Authorized Domains' list in the Firebase Console (Auth > Settings).");
+                    } else {
+                        alert("Sign-in error: " + error.message);
+                    }
+                }
+            };
+            
+            document.getElementById('auth-signout').onclick = () => {
+                if(confirm("Sign out of Arham's Journal?")) signOut(auth);
+            };
         }
 
         async function handleMigration() {
             const localTrades = JSON.parse(localStorage.getItem('protrade_trades') || '[]');
             const localNotes = JSON.parse(localStorage.getItem('protrade_notes') || '[]');
             
-            if ((localTrades.length > 0 && localTrades.length !== defaultTrades.length) || 
-                (localNotes.length > 0 && localNotes.length !== defaultNotes.length)) {
-                if (confirm('Move your locally saved trades to the cloud?')) {
-                    const batch = writeBatch(db);
-                    localTrades.forEach(t => {
-                        const ref = doc(db, `users/${currentUser.uid}/trades/${t.id}`);
-                        batch.set(ref, { ...t, authorId: currentUser.uid });
-                    });
-                    localNotes.forEach(n => {
-                        const ref = doc(db, `users/${currentUser.uid}/notes/${n.id}`);
-                        batch.set(ref, { ...n, authorId: currentUser.uid });
-                    });
-                    await batch.commit();
-                    localStorage.removeItem('protrade_trades');
-                    localStorage.removeItem('protrade_notes');
+            // Improved check: Migrate if there is any data that isn't the default set
+            const hasDataToMigrate = localTrades.length > 0 || localNotes.length > 0;
+            
+            if (hasDataToMigrate) {
+                if (confirm('Welcome back! Would you like to sync your locally saved trades and notes to your Cloud Account? This ensures your data is saved forever.')) {
+                    try {
+                        const batch = writeBatch(db);
+                        localTrades.forEach(t => {
+                            const ref = doc(db, `users/${currentUser.uid}/trades/${t.id}`);
+                            batch.set(ref, { 
+                                ...t, 
+                                authorId: currentUser.uid,
+                                screenshotUrl: t.screenshotUrl || '' 
+                            }, { merge: true });
+                        });
+                        localNotes.forEach(n => {
+                            const ref = doc(db, `users/${currentUser.uid}/notes/${n.id}`);
+                            batch.set(ref, { 
+                                ...n, 
+                                authorId: currentUser.uid 
+                            }, { merge: true });
+                        });
+                        await batch.commit();
+                        localStorage.removeItem('protrade_trades');
+                        localStorage.removeItem('protrade_notes');
+                        showToast('Sync completed successfully', 'success');
+                    } catch (error) {
+                        handleFirestoreError(error, 'migration', 'batch');
+                    }
                 }
             }
         }
@@ -473,11 +503,47 @@
                     userId: auth.currentUser?.uid,
                     email: auth.currentUser?.email,
                     emailVerified: auth.currentUser?.emailVerified,
+                    isAnonymous: auth.currentUser?.isAnonymous,
                 },
                 operationType,
                 path
             };
-            console.error('Firestore Error:', JSON.stringify(errInfo));
+            const jsonErr = JSON.stringify(errInfo);
+            console.error('Firestore Error:', jsonErr);
+            
+            // User-friendly alert
+            let msg = `Operation failed (${operationType} on ${path}).`;
+            if (errInfo.error.includes('permission-denied')) {
+                msg = "Security Error: You don't have permission to perform this action.";
+            } else if (errInfo.error.includes('quota')) {
+                msg = "Quota exceeded: The system has reached its limit for today.";
+            }
+            showToast(msg, 'error');
+
+            throw new Error(jsonErr); // Critical for system diagnostics
+        }
+
+        function showToast(msg, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `fixed bottom-20 left-1/2 -translate-x-1/2 px-6 py-3 rounded-2xl text-xs font-bold tracking-widest uppercase shadow-2xl z-100 transition-all duration-300 transform translate-y-10 opacity-0`;
+            if (type === 'error') {
+                toast.classList.add('bg-rose-500', 'text-white');
+            } else if (type === 'success') {
+                toast.classList.add('bg-emerald-500', 'text-slate-950');
+            } else {
+                toast.classList.add('bg-slate-800', 'text-slate-200');
+            }
+            toast.textContent = msg;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.remove('translate-y-10', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-10', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
         }
 
         // --- Core UI Logic ---
@@ -714,18 +780,25 @@
             };
 
             if (currentUser) {
-                const batch = writeBatch(db);
-                const tRef = doc(db, `users/${currentUser.uid}/trades/${id}`);
-                const nRef = doc(db, `users/${currentUser.uid}/notes/${noteId}`);
-                batch.set(tRef, { ...trade, authorId: currentUser.uid });
-                batch.set(nRef, { ...autoNote, authorId: currentUser.uid });
-                await batch.commit();
+                try {
+                    const batch = writeBatch(db);
+                    const tRef = doc(db, `users/${currentUser.uid}/trades/${id}`);
+                    const nRef = doc(db, `users/${currentUser.uid}/notes/${noteId}`);
+                    batch.set(tRef, { ...trade, authorId: currentUser.uid });
+                    batch.set(nRef, { ...autoNote, authorId: currentUser.uid });
+                    await batch.commit();
+                    showToast('Trade logged to Cloud', 'success');
+                } catch (error) {
+                    handleFirestoreError(error, 'write', 'trade_submit');
+                    return; // Don't reset form if save failed
+                }
             } else {
                 trades.unshift(trade);
                 notes.unshift(autoNote);
                 localStorage.setItem('protrade_trades', JSON.stringify(trades));
                 localStorage.setItem('protrade_notes', JSON.stringify(notes));
                 renderAll();
+                showToast('Trade saved locally (Guest Mode)', 'info');
             }
             e.target.reset();
             setDirection('LONG');
@@ -872,13 +945,19 @@
                 date: new Date().toISOString()
             };
             if (currentUser) {
-                await setDoc(doc(db, `users/${currentUser.uid}/notes/${activeNoteId}`), { ...updated, id: activeNoteId, authorId: currentUser.uid }, { merge: true });
+                try {
+                    await setDoc(doc(db, `users/${currentUser.uid}/notes/${activeNoteId}`), { ...updated, id: activeNoteId, authorId: currentUser.uid }, { merge: true });
+                    showToast('Note synced to cloud', 'success');
+                } catch (error) {
+                    handleFirestoreError(error, 'update', `notes/${activeNoteId}`);
+                }
             } else {
                 const idx = notes.findIndex(n => n.id === activeNoteId);
                 if (idx !== -1) {
                     notes[idx] = { ...notes[idx], ...updated };
                     localStorage.setItem('protrade_notes', JSON.stringify(notes));
                     renderNotesList();
+                    showToast('Note saved locally', 'info');
                 }
             }
             document.getElementById('note-status').textContent = 'SAVED';
