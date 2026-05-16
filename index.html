@@ -425,7 +425,9 @@
                     if (error.code === 'auth/popup-blocked') {
                         alert("Sign-in popup was blocked. Please allow popups for this site.");
                     } else if (error.code === 'auth/unauthorized-domain') {
-                        alert("Domain Error: This domain is not authorized in Firebase. \n\nIf you just launched on GitHub, you must add your GitHub Pages URL to the 'Authorized Domains' list in the Firebase Console (Auth > Settings).");
+                        const domain = window.location.hostname;
+                        const consoleLink = `https://console.firebase.google.com/project/${firebaseConfig.projectId}/auth/settings`;
+                        alert(`Domain Error: "${domain}" is not authorized in Firebase.\n\nTo fix this:\n1. Go to Firebase Console: ${consoleLink}\n2. Go to 'Authorized Domains'\n3. Add "${domain}" to the list.\n\nThen refresh this page.`);
                     } else {
                         alert("Sign-in error: " + error.message);
                     }
