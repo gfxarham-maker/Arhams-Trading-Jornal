@@ -1,0 +1,68 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // --- Trades ---
+    match /users/{userId}/trades/{tradeId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) 
+                    && isValidId(tradeId)
+                    && isValidTrade(request.resource.data);
+      allow update: if isOwner(userId)
+                    && isValidTrade(request.resource.data)
+                    && request.resource.data.authorId == resource.data.authorId
+                    // Ensure core fields don't change or if they do, it's valid
+                    && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['entry', 'exit', 'qty', 'mood', 'notes', 'strategy', 'date', 'screenshotUrl']));
+      allow delete: if isOwner(userId);
+    }
+
+    function isValidTrade(data) {
+      return data.keys().hasAll(['id', 'date', 'asset', 'direction', 'entry', 'exit', 'qty', 'authorId'])
+             && data.id is string && data.id.size() <= 128
+             && data.asset == 'XAUUSD'
+             && data.direction in ['LONG', 'SHORT']
+             && data.entry is number && data.entry >= 0
+             && data.exit is number && data.exit >= 0
+             && data.qty is number && data.qty > 0
+             && (data.get('screenshotUrl', '') is string)
+             && data.authorId == request.auth.uid;
+    }
+
+    // --- Notes ---
+    match /users/{userId}/notes/{noteId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId)
+                    && isValidId(noteId)
+                    && isValidNote(request.resource.data);
+      allow update: if isOwner(userId)
+                    && isValidNote(request.resource.data)
+                    && request.resource.data.authorId == resource.data.authorId
+                    && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'content', 'category', 'date']));
+      allow delete: if isOwner(userId);
+    }
+
+    function isValidNote(data) {
+      return data.keys().hasAll(['id', 'authorId', 'date'])
+             && data.id is string && data.id.size() <= 128
+             && data.authorId == request.auth.uid
+             && data.date is string;
+    }
+  }
+}

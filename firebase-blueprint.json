@@ -1,0 +1,50 @@
+{
+  "entities": {
+    "Trade": {
+      "title": "Trade",
+      "description": "A single gold trade record.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "asset": { "type": "string" },
+        "direction": { "type": "string", "enum": ["LONG", "SHORT"] },
+        "entry": { "type": "number" },
+        "exit": { "type": "number" },
+        "qty": { "type": "number" },
+        "fees": { "type": "number" },
+        "screenshotUrl": { "type": "string", "format": "uri" },
+        "strategy": { "type": "string" },
+        "mood": { "type": "string" },
+        "notes": { "type": "string" },
+        "authorId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "date", "asset", "direction", "entry", "exit", "qty", "authorId"]
+    },
+    "Note": {
+      "title": "Note",
+      "description": "A market observation or review.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "category": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "authorId": { "type": "string" }
+      },
+      "required": ["id", "authorId", "date"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/trades/{tradeId}": {
+      "schema": "Trade",
+      "description": "Collection of user gold trades."
+    },
+    "/users/{userId}/notes/{noteId}": {
+      "schema": "Note",
+      "description": "Collection of user market observations."
+    }
+  }
+}
